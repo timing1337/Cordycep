@@ -189,6 +189,7 @@
     <ClInclude Include="CascFileSystem.h" />
     <ClInclude Include="ClearFlagsCommand.h" />
     <ClInclude Include="CoDAWHandler.h" />
+    <ClInclude Include="CoDBO6Handler.h" />
     <ClInclude Include="CoDGhostsHandler.h" />
     <ClInclude Include="CoDIWHandler.h" />
     <ClInclude Include="CoDMW2RHandler.h" />
@@ -239,6 +240,7 @@
     <ClInclude Include="OodleDecompressorV1.h" />
     <ClInclude Include="OodleDecompressorV2.h" />
     <ClInclude Include="OodleDecompressorV3.h" />
+    <ClInclude Include="OodleDecompressorV4.h" />
     <ClInclude Include="Registry.h" />
     <ClInclude Include="RemoveFlagCommand.h" />
     <ClInclude Include="SeekOrigin.h" />
@@ -279,6 +281,7 @@
     <ClCompile Include="CascFileSystem.cpp" />
     <ClCompile Include="ClearFlagsCommand.cpp" />
     <ClCompile Include="CoDAWHandler.cpp" />
+    <ClCompile Include="CoDBO6Handler.cpp" />
     <ClCompile Include="CoDGhostsHandler.cpp" />
     <ClCompile Include="CoDIWHandler.cpp" />
     <ClCompile Include="CoDMW2RHandler.cpp" />
@@ -330,6 +333,7 @@
     <ClCompile Include="OodleDecompressorV1.cpp" />
     <ClCompile Include="OodleDecompressorV2.cpp" />
     <ClCompile Include="OodleDecompressorV3.cpp" />
+    <ClCompile Include="OodleDecompressorV4.cpp" />
     <ClCompile Include="Registry.cpp" />
     <ClCompile Include="RemoveFlagCommand.cpp" />
     <ClCompile Include="SeekOrigin.cpp" />

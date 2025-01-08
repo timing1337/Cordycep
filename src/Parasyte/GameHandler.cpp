@@ -511,6 +511,7 @@ bool ps::GameHandler::ResolvePatterns()
 					}
 					case ps::GamePatternType::Variable:
 					{
+						std::cout << "Variable: " << gamePattern.Name << " Address: " << (ULONGLONG)(resolved - (ULONGLONG)Module.Handle) << std::endl;
 						Variables[gamePattern.Name] = resolved;
 						break;
 					}
