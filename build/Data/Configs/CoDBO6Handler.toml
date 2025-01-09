@@ -1,9 +1,10 @@
-Flag = "default"ModuleName = "Data/Dumps/cod_dump.exe"
+Flag = "default"
+ModuleName = "Data/Dumps/cod_dump.exe"
 CacheName = "Data/Dumps/cod_dump.cache"
 FilesDirectory = "cod24"
 AliasesName = "Data/Aliases/ModernWarfare6Aliases.json"
 Dependencies = [ "oo2core_8_win64.dll", "_retail_/oo2core_8_win64.dll" ]
-CommonFiles = []
+CommonFiles = ["code_pre_gfx", "code_post_gfx"]
 
 [[Patterns]]
 PatternSignature = "48 8B ?? E8 ?? ?? ?? ?? 49 8B ?? 48 8B ?? 44 8B"
