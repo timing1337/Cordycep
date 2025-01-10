@@ -168,6 +168,10 @@ int main_ex(int argc, const char** argv)
     ps::log::Init("Log.txt");
     ps::log::EnableLogType(ps::LogType::Normal);
     ps::log::EnableLogType(ps::LogType::Error);
+	ps::log::EnableLogType(ps::LogType::Verbose);
+	ps::log::EnableLogType(ps::LogType::Debug);
+
+
     ps::log::SetOnPrint(Print);
 
     // Print the initialization information
