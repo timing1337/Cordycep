@@ -348,7 +348,7 @@ namespace ps::CoDBO6Internal
 		auto hash = (uint64_t)GetXAssetName(assetType, asset);
 		auto size = GetXAssetHeaderSize(assetType);
 		auto pool = &ps::Parasyte::GetCurrentHandler()->XAssetPools[assetType];
-
+		auto assetTypeName = GetXAssetTypeName(assetType);
 		// Some assets in MW3 have names, we need it for logging below
 		// and to remove the appended comma to indicate a temp asset.
 
@@ -415,8 +415,10 @@ namespace ps::CoDBO6Internal
 			}
 		}
 
-		if (assetType == 0x3B && DecryptString != nullptr)
+		//deal with localization
+		if (assetType == 0x3A && DecryptString != nullptr)
 		{
+			//are we deadass
 			char* str = *(char**)(result->Header + 8);
 			if ((*str & 0xC0) == 0x80)
 			{
@@ -804,7 +806,7 @@ bool ps::CoDBO6Handler::LoadFastFile(const std::string& ffName, FastFile* parent
 bool ps::CoDBO6Handler::DumpAliases()
 {
 	// AssetType: 0x3B
-	constexpr size_t localizeEntryAssetPoolIdx = 0x3B;
+	constexpr size_t localizeEntryAssetPoolIdx = 0x3a;
 	struct LocalizeEntry
 	{
 		uint64_t hash;
