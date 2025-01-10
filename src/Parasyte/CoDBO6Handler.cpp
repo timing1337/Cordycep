@@ -44,8 +44,8 @@ namespace ps::CoDBO6Internal
 	const char* (__fastcall* XAssetTypeHasName)(uint32_t xassetType);
 	// Initializes Asset Alignment.
 	void(__cdecl* InitAssetAlignmentInternal)();
-	// Decrypt asset name
-	char* (__cdecl* DecryptAssetName)(char* assetName);
+	// Hash asset name
+	char* (__cdecl* HashAssetName)(char* assetName);
 
 	// Zone Loader Flag (must be 1)
 	uint8_t* ZoneLoaderFlag = nullptr;
@@ -292,8 +292,10 @@ namespace ps::CoDBO6Internal
 		char* decrypted = str;
 
 		// Check if the string is actually encrypted.
-		if ((*str & 0xC0) == 0x80)
+		if ((*str & 0xC0) == 0x80) {
 			decrypted = DecryptString(StrDecryptBuffer.get(), StrDecryptBufferSize, str, nullptr);
+			std::cout << decrypted << std::endl;
+		}
 
 		auto strLen = strlen(decrypted) + 1;
 		auto id = XXHash64::hash(decrypted, strLen, 0);
@@ -345,22 +347,16 @@ namespace ps::CoDBO6Internal
 		}
 	}
 
-	void* LinkGenericXAsset(const uint32_t assetType, uint8_t* asset, const char* name = "", const bool temp = false) {
+	void* LinkGenericXAsset(const uint32_t assetType, uint8_t* asset) {
 
 		auto hash = (uint64_t)GetXAssetName(assetType, asset);
-		auto decName = DecryptAssetName((char*)name);
 		auto size = GetXAssetHeaderSize(assetType);
 		auto pool = &ps::Parasyte::GetCurrentHandler()->XAssetPools[assetType];
 		auto assetTypeName = GetXAssetTypeName(assetType);
-		// Some assets in MW3 have names, we need it for logging below
-		// and to remove the appended comma to indicate a temp asset.
-		// This is false as of BO6 (i think..)
+		auto temp = hash & 0x8000000000000000;
 
 		// Lazy allocate our pool to the default size from within the game.
 		pool->Initialize(size, 256);
-
-		// Remove status flag from the hash
-		hash &= 0x7FFFFFFFFFFFFFFF;
 
 		// TODO: Make a hash version of LinkXAssetEntry()
 		auto result = pool->FindXAssetEntry(hash, assetType);
@@ -416,7 +412,7 @@ namespace ps::CoDBO6Internal
 				std::memcpy(result->ExtendedData.get(), imageData, result->ExtendedDataSize);
 				*(uint64_t*)(gfxImage + imageDataPtrOffset) = (uint64_t)result->ExtendedData.get();
 
-				ps::log::Log(ps::LogType::Verbose, "Resolved loaded data for image, Hash: 0x%llx, Type: 0x%llx.", hash, (uint64_t)assetType);
+				ps::log::Log(ps::LogType::Verbose, "Resolved loaded data for image, Hash: 0x%llx, Type: 0x%llx", hash, (uint64_t)assetType);
 			}
 		}
 
@@ -437,7 +433,7 @@ namespace ps::CoDBO6Internal
 		size_t toPop[2]{ assetType, (size_t)asset };
 		AddAssetOffset(toPop);
 
-		ps::log::Log(ps::LogType::Verbose, "Linked: 0x%llx (Name: %s) Type: 0x%llx (%s) @ 0x%llx", hash, name, (uint64_t)assetType, GetXAssetTypeName(assetType), (uint64_t)result->Header);
+		ps::log::Log(ps::LogType::Verbose, "Linked: 0x%llx Type: 0x%llx (%s) Temp: %d @ 0x%llx", hash, (uint64_t)assetType, GetXAssetTypeName(assetType), temp, (uint64_t)result->Header);
 		return result->Header;
 
 	}
@@ -455,10 +451,8 @@ namespace ps::CoDBO6Internal
 		auto size = GetXAssetHeaderSize(assetType);
 		pool->Initialize(size, 256);
 
+		bool temp = hash & 0x8000000000000000;
 		hash &= 0x7FFFFFFFFFFFFFFF;
-
-
-		bool temp = false;
 
 		if (XAssetTypeHasName(assetType) && name != nullptr) {
 			temp = name[0] == ',';
@@ -575,7 +569,7 @@ bool ps::CoDBO6Handler::Initialize(const std::string& gameDirectory)
 	Variables["ps::CoDBO6Internal::LoadStream"] = (char*)Module.Handle + 0x27BFF60;
 	Variables["ps::CoDBO6Internal::LoadStreamNew"] = (char*)Module.Handle + 0x264CE20;
 	Variables["ps::CoDBO6Internal::memfill"] = (char*)Module.Handle + 0x9033A70;
-	Variables["ps::CoDBO6Internal::DecryptAssetName"] = (char*)Module.Handle + 0x2042A40;
+	Variables["ps::CoDBO6Internal::HashAssetName"] = (char*)Module.Handle + 0x2042A40;
 
 	//Patching evil
 
@@ -595,7 +589,7 @@ bool ps::CoDBO6Handler::Initialize(const std::string& gameDirectory)
 	PS_SETGAMEVAR(ps::CoDBO6Internal::DecryptString);
 	PS_SETGAMEVAR(ps::CoDBO6Internal::LoadStream);
 	PS_SETGAMEVAR(ps::CoDBO6Internal::LoadStreamFuncPointers);
-	PS_SETGAMEVAR(ps::CoDBO6Internal::DecryptAssetName);
+	PS_SETGAMEVAR(ps::CoDBO6Internal::HashAssetName);
 
 	PS_DETGAMEVAR(ps::CoDBO6Internal::ReadXFile);
 	PS_DETGAMEVAR(ps::CoDBO6Internal::AllocateUniqueString);
