@@ -18,6 +18,8 @@ namespace ps
 		GamePatternFlag Flags;
 		// The offset from where the pattern is found for where the required data is.
 		size_t Offset;
+		// The size of the pattern.
+		size_t Size;
 
 		// Creates a new blank game pattern.
 		GamePattern();

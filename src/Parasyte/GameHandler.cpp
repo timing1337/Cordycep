@@ -16,13 +16,13 @@ bool ps::GameHandler::GetFiles(const std::string& pattern, std::vector<std::stri
 
 	// Get all the files in the directory and convert them to the form we want
 	FileSystem->EnumerateFiles(CurrentConfig->FilesDirectory, pattern + ".ff", true, [&results](const std::string& fileName, const size_t size)
-	{
-		// We just need the base name of file
-		std::string fileStemName = std::filesystem::path(fileName).stem().string();
+		{
+			// We just need the base name of file
+			std::string fileStemName = std::filesystem::path(fileName).stem().string();
 
-		// Store it away
-		results.emplace_back(fileStemName);
-	});
+			// Store it away
+			results.emplace_back(fileStemName);
+		});
 
 	return true;
 }
@@ -178,16 +178,16 @@ bool ps::GameHandler::IsFastFileLoaded(const std::string& ffName)
 {
 	auto id = XXHash64::hash(ffName.c_str(), ffName.size(), 0);
 
-    const bool isFound = std::ranges::any_of(FastFiles, [&](auto& ff) {
-        return ff->ID == id;
-    });
+	const bool isFound = std::ranges::any_of(FastFiles, [&](auto& ff) {
+		return ff->ID == id;
+		});
 
 	return isFound;
 }
 
 bool ps::GameHandler::DumpAliases()
 {
-    // TODO: Log for unsupported handlers
+	// TODO: Log for unsupported handlers
 	return false;
 }
 
@@ -323,9 +323,9 @@ void ps::GameHandler::RemoveFlag(const std::string& flag)
 		if (flag.size() == it->size())
 		{
 			if (std::equal(flag.begin(), flag.end(), it->begin(), [](const char& a, const char b)
-			{
-				return a == b || tolower(a) == tolower(b);
-			}))
+				{
+					return a == b || tolower(a) == tolower(b);
+				}))
 			{
 				it = Flags.erase(it);
 			}
@@ -345,9 +345,9 @@ bool ps::GameHandler::HasFlag(const std::string& flag)
 		if (flag.size() == setFlag.size())
 		{
 			if (std::equal(flag.begin(), flag.end(), setFlag.begin(), [](const char& a, const char b)
-			{
-				return a == b || tolower(a) == tolower(b);
-			}))
+				{
+					return a == b || tolower(a) == tolower(b);
+				}))
 			{
 				return true;
 			}
@@ -456,14 +456,20 @@ bool ps::GameHandler::ResolvePatterns()
 	for (auto& gamePattern : CurrentConfig->Patterns)
 	{
 		// First update our pattern and resolve the data.
+
+		if (gamePattern.HasFlag(ps::GamePatternFlag::ResolveFromHardcodedAddress)) {
+			ResolvePatternData(gamePattern, (char*)Module.Handle + gamePattern.Offset);
+			continue;
+		}
+
 		patternBytes.Update(gamePattern.Signature);
-		
+
 		auto addresses = Module.Scan(patternBytes, gamePattern.HasFlag(ps::GamePatternFlag::ResolveMultipleValues));
 
 		if (addresses.empty())
 		{
 			ps::log::Log(ps::LogType::Error, "Failed to find pattern Name: %s, Signature: %s, Offset: %d", gamePattern.Name.c_str(), gamePattern.Signature.c_str(), gamePattern.Offset);
-			success = false;	
+			success = false;
 		}
 		else
 		{
@@ -498,26 +504,7 @@ bool ps::GameHandler::ResolvePatterns()
 					return false;
 				}
 
-				switch (gamePattern.Type)
-				{
-					case ps::GamePatternType::Null:
-					{
-						DWORD d = 0;
-						VirtualProtect((LPVOID)resolved, sizeof(uint8_t), PAGE_EXECUTE_READWRITE, &d);
-						*(uint8_t*)resolved = 0xC3;
-						VirtualProtect((LPVOID)resolved, sizeof(uint8_t), d, &d);
-						FlushInstructionCache(GetCurrentProcess(), (LPVOID)resolved, sizeof(uint8_t));
-						break;
-					}
-					case ps::GamePatternType::Variable:
-					{
-						std::cout << "Variable: " << gamePattern.Name << " Address: " << (ULONGLONG)(resolved - (ULONGLONG)Module.Handle) << std::endl;
-						Variables[gamePattern.Name] = resolved;
-						break;
-					}
-					case GamePatternType::Unknown:
-						break;
-				}
+				ResolvePatternData(gamePattern, resolved);
 			}
 		}
 	}
@@ -526,6 +513,26 @@ bool ps::GameHandler::ResolvePatterns()
 		throw std::exception("Failed to find one or more game patterns. The log file has more information this.");
 
 	return success;
+}
+
+void ps::GameHandler::ResolvePatternData(const ps::GamePattern& gamePattern, const char* resolved) {
+	switch (gamePattern.Type)
+	{
+	case ps::GamePatternType::Null:
+		*(uint8_t*)resolved = 0xC3;
+		break;
+	case ps::GamePatternType::Variable:
+		ps::GameHandler::Variables[gamePattern.Name] = (void*)resolved;
+		break;
+	case ps::GamePatternType::Noop:
+		Module.Fill(resolved, 0x90, gamePattern.Size);
+		break;
+	case ps::GamePatternType::JzPatch:
+		*(uint8_t*)resolved = 0x90;
+		*(uint8_t*)(resolved + 1) = 0x31;
+		*(uint8_t*)(resolved + 2) = 0xC0;
+		break;
+	}
 }
 
 bool ps::GameHandler::CopyDependencies()

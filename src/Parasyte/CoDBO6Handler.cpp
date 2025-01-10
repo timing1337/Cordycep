@@ -44,11 +44,11 @@ namespace ps::CoDBO6Internal
 	const char* (__fastcall* XAssetTypeHasName)(uint32_t xassetType);
 	// Initializes Asset Alignment.
 	void(__cdecl* InitAssetAlignmentInternal)();
+	// Decrypt asset name
+	char* (__cdecl* DecryptAssetName)(char* assetName);
 
 	// Zone Loader Flag (must be 1)
 	uint8_t* ZoneLoaderFlag = nullptr;
-	// Something i dont know
-	uint64_t** somethingIDontKnow = nullptr;
 	// LoadStream function pointers
 	uint64_t** LoadStreamFuncPointers = nullptr;
 	// The size of the below buffer
@@ -65,6 +65,8 @@ namespace ps::CoDBO6Internal
 	constexpr size_t StrDecryptBufferSize = 65535;
 	// Current string offset being allocated.
 	uint32_t StrBufferOffset = 0;
+	// asset type name -> asset type mapping
+	std::map<std::string, uint32_t> AssetTypeMapping;
 
 	// Resolves the stream position, running bounds checks.
 	__int64 __fastcall ResolveStreamPosition(__int64* a1)
@@ -346,11 +348,13 @@ namespace ps::CoDBO6Internal
 	void* LinkGenericXAsset(const uint32_t assetType, uint8_t* asset, const char* name = "", const bool temp = false) {
 
 		auto hash = (uint64_t)GetXAssetName(assetType, asset);
+		auto decName = DecryptAssetName((char*)name);
 		auto size = GetXAssetHeaderSize(assetType);
 		auto pool = &ps::Parasyte::GetCurrentHandler()->XAssetPools[assetType];
 		auto assetTypeName = GetXAssetTypeName(assetType);
 		// Some assets in MW3 have names, we need it for logging below
 		// and to remove the appended comma to indicate a temp asset.
+		// This is false as of BO6 (i think..)
 
 		// Lazy allocate our pool to the default size from within the game.
 		pool->Initialize(size, 256);
@@ -381,7 +385,6 @@ namespace ps::CoDBO6Internal
 			}
 		}
 		else {
-
 			result = pool->CreateEntry(
 				hash,
 				assetType,
@@ -391,8 +394,10 @@ namespace ps::CoDBO6Internal
 				0);
 		}
 
+		std::string assetTypeNameStr(assetTypeName);
+
 		// If we're an image, we need to check if we want to allocate an image slot
-		if (assetType == 0x15)
+		if (strcmp(assetTypeName, "image") == 0)
 		{
 			// Get the image data offsets
 			constexpr size_t imageDataPtrOffset = 0x38;
@@ -416,14 +421,16 @@ namespace ps::CoDBO6Internal
 		}
 
 		//deal with localization
-		if (assetType == 0x3A && DecryptString != nullptr)
+		if ((strcmp(assetTypeName, "localize") == 0 || strcmp(assetTypeName, "localizeassetentrydev") == 0) && DecryptString != nullptr)
 		{
 			//are we deadass
+			uint64_t hash = *(uint64_t*)(result->Header);
 			char* str = *(char**)(result->Header + 8);
 			if ((*str & 0xC0) == 0x80)
 			{
 				str = DecryptString(ps::CoDBO6Internal::StrDecryptBuffer.get(), ps::CoDBO6Internal::StrDecryptBufferSize, str, nullptr);
 			}
+			ps::log::Log(ps::LogType::Verbose, "Localization entry:%s, Hash:0x%llx", str, hash);
 			memcpy(*(char**)(result->Header + 8), str, strlen(str) + 1);
 		}
 
@@ -450,9 +457,10 @@ namespace ps::CoDBO6Internal
 
 		hash &= 0x7FFFFFFFFFFFFFFF;
 
+
 		bool temp = false;
 
-		if (XAssetTypeHasName(assetType)) {
+		if (XAssetTypeHasName(assetType) && name != nullptr) {
 			temp = name[0] == ',';
 			if(temp) std::memmove((void*)&name[0], &name[1], strlen(name));
 			name = DecryptString(StrDecryptBuffer.get(), StrDecryptBufferSize, name, nullptr);
@@ -460,32 +468,44 @@ namespace ps::CoDBO6Internal
 
 		auto result = pool->FindXAssetEntry(hash, assetType);
 		if (result != nullptr) return result->Header;
-
-		auto asset = *&(somethingIDontKnow)[2 * assetType + 588396];
-		//return LinkGenericXAsset(assetType, (uint8_t*) asset, name, temp);
+		return 0;
 	}
 
 	// yer boio
-	void __fastcall FixUpXModelSurfsPtr(uint8_t* xmodel)
+	uint32_t __fastcall FixUpXModelSurfsPtr(uint8_t* xmodel)
 	{
 		// Get the lods data offset
+		*(uint32_t*)(xmodel + 28) &= 0xFFFCFFFF;
 		const bool isSpGame = ps::Parasyte::GetCurrentHandler()->HasFlag("sp");
 		const size_t lodsDataPtrOffset = isSpGame ? 272 : 152;
 
 		size_t lodCount = *(uint8_t*)(xmodel + 18);
 		uint8_t* lods = *(uint8_t**)(xmodel + lodsDataPtrOffset);
 
+		uint32_t nonWorkingLods = 0;
+
 		for (size_t i = 0; i < lodCount; i++)
 		{
 			uint8_t* xmodelLod = lods + i * 72;
 			uint8_t* xmodelSurfs = *(uint8_t**)xmodelLod;
 
+			//not the perfect check but it will do for now
 			if (xmodelSurfs != nullptr)
 			{
 				*(uint64_t*)(xmodelLod + 8) = *(uint64_t*)(xmodelSurfs + 8);
 			}
+			else {
+				nonWorkingLods++;
+				*(uint32_t*)(xmodel + 28) |= 0x10000;
+			}
 		}
+
+		if (nonWorkingLods == lodCount) {
+			*(uint32_t*)(xmodel + 28) |= 0x20000;
+		}
+		return lodCount;
 	}
+
 	uint64_t HashAsset(const char* data)
 	{
 		uint64_t result = 0x47F5817A5EF961BA;
@@ -508,17 +528,6 @@ const std::string ps::CoDBO6Handler::GetName()
 {
 	return "Call of Duty: Black Ops 6 (2024)";
 }
-
-void Fill(char* address, uint8_t value, uint64_t size) {
-	DWORD d;
-	VirtualProtect((LPVOID)address, sizeof(uint8_t), PAGE_EXECUTE_READWRITE, &d);
-	for (uint64_t i = 0; i < size; i++) {
-		*(uint8_t*)(address + i) = value;
-	}
-	VirtualProtect((LPVOID)address, sizeof(uint8_t), d, &d);
-	FlushInstructionCache(GetCurrentProcess(), (LPVOID)address, sizeof(uint8_t));
-}
-
 
 bool ps::CoDBO6Handler::Initialize(const std::string& gameDirectory)
 {
@@ -543,7 +552,7 @@ bool ps::CoDBO6Handler::Initialize(const std::string& gameDirectory)
 
 	Module.LoadCache(CurrentConfig->CacheName);
 
-	//ResolvePatterns();
+	ResolvePatterns();
 
 	Variables["ps::CoDBO6Internal::GetXAssetHeaderSize"] = (char*)Module.Handle + 0x276A870;
 	Variables["ps::CoDBO6Internal::RequestPatchedData"] = (char*)Module.Handle + 0x5167250;
@@ -566,7 +575,7 @@ bool ps::CoDBO6Handler::Initialize(const std::string& gameDirectory)
 	Variables["ps::CoDBO6Internal::LoadStream"] = (char*)Module.Handle + 0x27BFF60;
 	Variables["ps::CoDBO6Internal::LoadStreamNew"] = (char*)Module.Handle + 0x264CE20;
 	Variables["ps::CoDBO6Internal::memfill"] = (char*)Module.Handle + 0x9033A70;
-	Variables["ps::CoDBO6Internal::somethingIDontKnow"] = (char*)Module.Handle + 0xD842518;
+	Variables["ps::CoDBO6Internal::DecryptAssetName"] = (char*)Module.Handle + 0x2042A40;
 
 	//Patching evil
 
@@ -586,7 +595,7 @@ bool ps::CoDBO6Handler::Initialize(const std::string& gameDirectory)
 	PS_SETGAMEVAR(ps::CoDBO6Internal::DecryptString);
 	PS_SETGAMEVAR(ps::CoDBO6Internal::LoadStream);
 	PS_SETGAMEVAR(ps::CoDBO6Internal::LoadStreamFuncPointers);
-	PS_SETGAMEVAR(ps::CoDBO6Internal::somethingIDontKnow);
+	PS_SETGAMEVAR(ps::CoDBO6Internal::DecryptAssetName);
 
 	PS_DETGAMEVAR(ps::CoDBO6Internal::ReadXFile);
 	PS_DETGAMEVAR(ps::CoDBO6Internal::AllocateUniqueString);
@@ -595,20 +604,27 @@ bool ps::CoDBO6Handler::Initialize(const std::string& gameDirectory)
 	PS_DETGAMEVAR(ps::CoDBO6Internal::LoadStreamNew);
 	PS_DETGAMEVAR(ps::CoDBO6Internal::DB_AddXAssetEx);
 
-	Fill((char*)Module.Handle + 0x27BFCAC, 0x90, 7);
-	Fill((char*)Module.Handle + 0x277E800, 0xC3, 1);
-	Fill((char*)Module.Handle + 0x27BF760, 0xC3, 1);
-	Fill((char*)Module.Handle + 0x27BF8E0, 0xC3, 1);
-	Fill((char*)Module.Handle + 0x2767950, 0xC3, 1); //soundbanks
-	Fill((char*)Module.Handle + 0x57E9CE0, 0xC3, 1); //dlog something idk
+	Module.Fill((char*)Module.Handle + 0x27BFCAC, 0x90, 7);
+	Module.Fill((char*)Module.Handle + 0x277E800, 0xC3, 1);
+	Module.Fill((char*)Module.Handle + 0x27BF760, 0xC3, 1);
+	Module.Fill((char*)Module.Handle + 0x27BF8E0, 0xC3, 1);
 
-	Fill((char*)Module.Handle + 0x27BFD33, 0x90, 1);
-	Fill((char*)Module.Handle + 0x27BFD34, 0x31, 1);
-	Fill((char*)Module.Handle + 0x27BFD35, 0xC0, 1);
+
+	Module.Fill((char*)Module.Handle + 0x2767950, 0xC3, 1); //soundbanks
+	Module.Fill((char*)Module.Handle + 0x57E9CE0, 0xC3, 1); //dlog something idk
+	Module.Fill((char*)Module.Handle + 0x27677E0, 0xC3, 1); //dlogschema
+	Module.Fill((char*)Module.Handle + 0x27678B0, 0xC3, 1); //libshader
+	Module.Fill((char*)Module.Handle + 0x2767880, 0xC3, 1); //fill out something related to image
+	Module.Fill((char*)Module.Handle + 0x2777AF0, 0xC3, 1); //patch out xmodel surfs fix
+
+
+	Module.Fill((char*)Module.Handle + 0x27BFD33, 0x90, 1);
+	Module.Fill((char*)Module.Handle + 0x27BFD34, 0x31, 1);
+	Module.Fill((char*)Module.Handle + 0x27BFD35, 0xC0, 1);
 
 	//PS_INTGAMEVAR(ps::CoDBO6Internal::ResolveStreamPosition, ps::CoDBO6Internal::ResolveStreamPositionOriginal);
 
-	XAssetPoolCount   = 256;
+	XAssetPoolCount   = 321;
 	XAssetPools       = std::make_unique<XAssetPool[]>(XAssetPoolCount);
 	Strings           = std::make_unique<char[]>(0x2000000);
 	StringPoolSize    = 0;
@@ -626,7 +642,14 @@ bool ps::CoDBO6Handler::Initialize(const std::string& gameDirectory)
 
 	ps::CoDBO6Internal::InitializePatch();
 
-	std::cout << ps::CoDBO6Internal::GetXAssetTypeName(12) << std::endl;
+	for (int i = 0; i < 321; i++) {
+		auto assetTypeName = ps::CoDBO6Internal::GetXAssetTypeName(i);
+		if (!assetTypeName) break;
+		std::string assetTypeNameStr(assetTypeName);
+		ps::CoDBO6Internal::AssetTypeMapping[assetTypeNameStr] = i;
+		ps::log::Log(ps::LogType::Debug, "Registering %s(%d)", assetTypeName, i);
+	}
+	std::cout << ps::CoDBO6Internal::AssetTypeMapping["xmodel"] << std::endl;
 	return true;
 }
 
@@ -771,6 +794,7 @@ bool ps::CoDBO6Handler::LoadFastFile(const std::string& ffName, FastFile* parent
 		ps::CoDBO6Internal::FixUpXModelSurfsPtr(asset->Header);
 	});
 
+
 	ps::log::Log(ps::LogType::Normal, "Successfully loaded: %s", ffName.c_str());
 
 	// If we have no parent, we are a root, and need to attempt to load the localized, etc.
@@ -806,7 +830,7 @@ bool ps::CoDBO6Handler::LoadFastFile(const std::string& ffName, FastFile* parent
 bool ps::CoDBO6Handler::DumpAliases()
 {
 	// AssetType: 0x3B
-	constexpr size_t localizeEntryAssetPoolIdx = 0x3a;
+	uint32_t localizeEntryAssetPoolIdx = ps::CoDBO6Internal::AssetTypeMapping["localize"];
 	struct LocalizeEntry
 	{
 		uint64_t hash;
@@ -826,7 +850,7 @@ bool ps::CoDBO6Handler::DumpAliases()
 	});
 
 	// Read weapon asset data
-	constexpr size_t weaponAssetPoolIdx = 0x3D;
+	uint32_t weaponAssetPoolIdx = ps::CoDBO6Internal::AssetTypeMapping["weapon"];
 
 	json resultJson;
 	ps::Parasyte::GetCurrentHandler()->XAssetPools[weaponAssetPoolIdx].EnumerateEntries([&](ps::XAsset* asset)
@@ -935,7 +959,7 @@ bool ps::CoDBO6Handler::DumpAliases()
 		}
 
 		std::unordered_set<std::string> ffNames;
-		constexpr size_t xmodelAssetPoolIdx = 0x9;
+		uint32_t xmodelAssetPoolIdx = ps::CoDBO6Internal::AssetTypeMapping["xmodel"];
 		auto xmodelPool = &ps::Parasyte::GetCurrentHandler()->XAssetPools[xmodelAssetPoolIdx];
 		for (const auto& hash : xmodelHashes)
 		{

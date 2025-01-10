@@ -11,6 +11,10 @@ namespace ps
 		Variable,
 		// A pattern that defines data that must be nulled.
 		Null,
+		// A pattern that need Noop
+		Noop,
+		// A pattern that need jz patched
+		JzPatch,
 	};
 }
 

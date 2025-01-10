@@ -19,6 +19,8 @@ namespace ps
 		ResolveFromEndOfByteCmp = 1 << 4,
 		// We're resolving multiple values.
 		ResolveMultipleValues = 1 << 5,
+		// We're using hardcoded addresss (too noob for signatures...)
+		ResolveFromHardcodedAddress = 1 << 6,
 	};
 }
 

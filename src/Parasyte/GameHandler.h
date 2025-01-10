@@ -126,6 +126,8 @@ namespace ps
 		virtual bool SetConfig();
 		// Resolves patterns within the game module.
 		virtual bool ResolvePatterns();
+		// Apply pattern data.
+		void ResolvePatternData(const ps::GamePattern& gamePattern, const char* resolved);
 		// Copies dependencies.
 		virtual bool CopyDependencies();
 

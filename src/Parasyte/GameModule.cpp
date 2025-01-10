@@ -386,6 +386,16 @@ const void ps::GameModule::SaveCache(const std::string& cachePath) const
     }
 }
 
+void ps::GameModule::Fill(const void* address, const uint8_t value, const uint64_t size) {
+    DWORD d;
+    VirtualProtect((LPVOID)address, sizeof(uint8_t), PAGE_EXECUTE_READWRITE, &d);
+    for (uint64_t i = 0; i < size; i++) {
+        ((uint8_t*)address)[i] = value;
+    }
+    VirtualProtect((LPVOID)address, sizeof(uint8_t), d, &d);
+    FlushInstructionCache(GetCurrentProcess(), (LPVOID)address, sizeof(uint8_t));
+}
+
 void ps::GameModule::FixIAT(const HINSTANCE handle)
 {
 	// Get IAT size

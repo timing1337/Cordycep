@@ -12,6 +12,7 @@ std::map<std::string, ps::GamePatternFlag> PatternFlags
 	{ "ResolveFromEndOfData",			ps::GamePatternFlag::ResolveFromEndOfData },
 	{ "ResolveFromEndOfByteCmp",		ps::GamePatternFlag::ResolveFromEndOfByteCmp },
 	{ "ResolveMultipleValues",			ps::GamePatternFlag::ResolveMultipleValues },
+	{ "ResolveHardcodedAddress",		ps::GamePatternFlag::ResolveFromHardcodedAddress },
 };
 
 // Supported types within config files.
@@ -19,6 +20,8 @@ std::map<std::string, ps::GamePatternType> PatternTypes
 {
 	{ "Null",							ps::GamePatternType::Null },
 	{ "Variable",						ps::GamePatternType::Variable },
+	{ "Noop",							ps::GamePatternType::Noop },
+	{ "JzPatch",						ps::GamePatternType::JzPatch },
 };
 
 ps::GameConfig::GameConfig(const std::string& flag) : Flag(flag)
@@ -66,6 +69,8 @@ bool ps::GameConfig::LoadConfigsJson(const std::string& filePath, std::map<std::
 			gamePattern.Signature = pattern["PatternSignature"];
 			gamePattern.Name = pattern.value("PatternName", "Anon");
 			gamePattern.Offset = pattern.value("Offset", (size_t)0);
+			gamePattern.Size = pattern.value("Size", (size_t)0);
+
 			gamePattern.Type = ps::GamePatternType::Variable;
 
 			if (pattern["PatternType"].is_string())
@@ -147,6 +152,7 @@ bool ps::GameConfig::LoadConfigsToml(const std::string& filePath, std::map<std::
 			gamePattern.Signature = pattern["PatternSignature"].value_or(std::string("NoPatternSignature"));
 			gamePattern.Name = pattern["PatternName"].value_or(std::string("NoPatternName"));
 			gamePattern.Offset = pattern["Offset"].value_or((size_t)0);
+			gamePattern.Size = pattern["Size"].value_or((size_t)0);
 	
 			// Pattern type
 			const auto foundType = PatternTypes.find(pattern["PatternType"].value_or(std::string("NoPatternType")));

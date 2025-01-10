@@ -76,6 +76,8 @@ namespace ps
 		const void LoadCache(const std::string& cachePath);
 		const void SaveCache(const std::string& cachePath) const;
 
+		void Fill(const void* address, const uint8_t value, const uint64_t size);
+
 		// Parse and fix the IAT of the game handle. (is called in GameModule.Load())
 		void FixIAT(HINSTANCE handle);
 
