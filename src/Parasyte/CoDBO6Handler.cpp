@@ -425,9 +425,6 @@ namespace ps::CoDBO6Internal
 		//deal with localization
 		if ((strcmp(assetTypeName, "localize") == 0 || strcmp(assetTypeName, "localizeassetentrydev") == 0) && DecryptString != nullptr)
 		{
-			//are we deadass
-			//this is failing on some cases.... better turn it off for now
-			/*
 			uint64_t hash = *(uint64_t*)(result->Header);
 			uint8_t* str = *(uint8_t**)(result->Header + 8);
 			if ((*str & 0xC0) == 0x80)
@@ -436,7 +433,6 @@ namespace ps::CoDBO6Internal
 				ps::log::Log(ps::LogType::Verbose, "Localization entry:%s, Hash:0x%llx", decoded, hash);
 				memcpy(*(char**)(result->Header + 8), decoded, strlen(decoded) + 1);
 			}
-			*/
 		}
 		ps::log::Log(ps::LogType::Verbose, "Linked: 0x%llx Type: 0x%llx (%s) Temp: %d @ 0x%llx", hash, (uint64_t)assetType, GetXAssetTypeName(assetType), temp, (uint64_t)result->Header);
 		size_t toPop[2]{ assetType, (size_t)asset };
@@ -606,6 +602,8 @@ bool ps::CoDBO6Handler::Initialize(const std::string& gameDirectory)
 	Module.Fill((char*)Module.Handle + 0x2768AE0, 0xC3, 1); //StreamingInfo
 	Module.Fill((char*)Module.Handle + 0x2778B40, 0xC3, 1); //fix xmodel surfs
 	Module.Fill((char*)Module.Handle + 0x500C0E0, 0xC3, 1); //soundbanks
+	Module.Fill((char*)Module.Handle + 0x345C990, 0xC3, 1); //another variant of stringdecrypt
+	Module.Fill((char*)Module.Handle + 0x50A69E0, 0xC3, 1); //another variant of stringdecrypt
 
 	XAssetPoolCount   = 321;
 	XAssetPools       = std::make_unique<XAssetPool[]>(XAssetPoolCount);
@@ -664,7 +662,7 @@ bool ps::CoDBO6Handler::IsValid(const std::string& param)
 	return strcmp(param.c_str(), "bo6") == 0;
 }
 
-bool DealWithTaff(ps::FileHandle& handle, const int additionTaffSize = 288) {
+bool DealWithTaff(ps::FileHandle& handle) {
 	handle.Read<uint32_t>(); //Magic
 	uint32_t count = handle.Read<uint32_t>();
 	for (uint32_t i = 0; i < count; i++)
@@ -677,7 +675,7 @@ bool DealWithTaff(ps::FileHandle& handle, const int additionTaffSize = 288) {
 	uint32_t compressionHeader = handle.Read<uint32_t>();
 	if (compressionHeader == 0x46464154 || compressionHeader == 0x46464141 || compressionHeader == 0x41464154 || compressionHeader == 0x54414641)
 	{
-		handle.Seek(additionTaffSize, SEEK_CUR);
+		handle.Seek(288, SEEK_CUR);
 		compressionHeader = handle.Read<uint32_t>();
 	}
 

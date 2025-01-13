@@ -41,13 +41,6 @@ size_t ps::OodleDecompressorV4::Read(void* ptr, const size_t size, const size_t 
 			File.Seek(8, SEEK_CUR);
 		}
 
-		if (BlockIndex == NextHashBlockIndex)
-		{
-			File.Seek(16384, FILE_CURRENT);
-			NextHashBlockIndex++;
-			BlockIndex = 0;
-		}
-
 		CompressedBufferSize = File.Read<uint32_t>();
 		DecompressedBufferSize = File.Read<uint32_t>();
 		Flags = File.Read<uint32_t>();
@@ -75,6 +68,12 @@ size_t ps::OodleDecompressorV4::Read(void* ptr, const size_t size, const size_t 
 		}
 
 		BlockIndex++;
+
+		if (BlockIndex == NextHashBlockIndex)
+		{
+			File.Seek(16384, FILE_CURRENT);
+			NextHashBlockIndex += 512;
+		}
 	}
 
 	return size;
