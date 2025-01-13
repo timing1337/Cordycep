@@ -8,7 +8,7 @@ namespace ps
 	{
 	public:
 		// Creates a new handler for the given title.
-		CoDBO6Handler() : GameHandler(0x6B4F4D41594D4159) {}
+		CoDBO6Handler() : GameHandler(0x4B4F4D41594D4159) {}
 
 		// Gets the shorthand used for setting the handler.
 		const std::string GetShorthand() override;

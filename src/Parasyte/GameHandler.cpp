@@ -65,6 +65,7 @@ void ps::GameHandler::OpenGameModule(const std::string& moduleName)
 
 		throw std::exception("Failed to open the game's dump, check the log file for more information.");
 	}
+	ps::log::Print("MAIN", "Current game module: %llx", (uint64_t)Module.Handle);
 }
 
 bool ps::GameHandler::LogFiles()
@@ -519,9 +520,11 @@ void ps::GameHandler::ResolvePatternData(const ps::GamePattern& gamePattern, con
 	switch (gamePattern.Type)
 	{
 	case ps::GamePatternType::Null:
+		//std::cout << std::hex << "Null: " << (uint64_t)resolved << std::endl;
 		*(uint8_t*)resolved = 0xC3;
 		break;
 	case ps::GamePatternType::Variable:
+		//std::cout << std::hex << "Variable: " << gamePattern.Name << " Resolved: " << (uint64_t)resolved - (uint64_t)Module.Handle << std::endl;
 		ps::GameHandler::Variables[gamePattern.Name] = (void*)resolved;
 		break;
 	case ps::GamePatternType::Noop:
